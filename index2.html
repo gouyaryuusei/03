@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模試成績ダッシュボード</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+
+<style>
+  :root{
+    --ink:#16233D;
+    --ink-soft:#4A5670;
+    --paper:#EEF2F1;
+    --surface:#FFFFFF;
+    --accent:#2F6F63;
+    --accent-dark:#1E4B41;
+    --accent-soft:#DCEAE6;
+    --warn:#B2472F;
+    --warn-soft:#F6E3DD;
+    --mid:#C79A3C;
+    --mid-soft:#F5EBD3;
+    --line:#DBE3E0;
+    --muted:#6B7583;
+    --font-display:'Shippori Mincho', serif;
+    --font-body:'Zen Kaku Gothic New', sans-serif;
+    --font-data:'JetBrains Mono', monospace;
+    --radius:14px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+    line-height:1.6;
+    padding:0 0 60px;
+  }
+  a{ color:inherit; }
+  ::selection{ background:var(--accent-soft); }
+  :focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
+
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 20px; }
+
+  /* ---------- Header ---------- */
+  header.top{
+    background:linear-gradient(180deg, var(--ink) 0%, #1C2C4A 100%);
+    color:#F3F6F5;
+    padding:36px 0 30px;
+    margin-bottom:28px;
+  }
+  header.top .eyebrow{
+    font-family:var(--font-data);
+    letter-spacing:.14em;
+    font-size:12px;
+    color:#9FD9C8;
+    text-transform:uppercase;
+    margin:0 0 10px;
+  }
+  header.top h1{
+    font-family:var(--font-display);
+    font-weight:800;
+    font-size:clamp(26px,4vw,36px);
+    margin:0 0 10px;
+    letter-spacing:.02em;
+  }
+  header.top p{
+    margin:0;
+    color:#C9D3D0;
+    font-size:14.5px;
+    max-width:640px;
+  }
+  .privacy-note{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:16px;
+    padding:9px 14px;
+    background:rgba(159,217,200,.12);
+    border:1px solid rgba(159,217,200,.35);
+    border-radius:999px;
+    font-size:12.5px;
+    color:#BFE7D9;
+  }
+  .privacy-note svg{ flex:none; width:14px; height:14px; }
+
+  /* ---------- Sections generic ---------- */
+  section{ margin-bottom:26px; }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 24px;
+  }
+  h2.section-title{
+    font-family:var(--font-display);
+    font-size:19px;
+    font-weight:600;
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  h2.section-title .num{
+    font-family:var(--font-data);
+    font-size:12px;
+    color:var(--accent);
+    border:1px solid var(--accent);
+    border-radius:6px;
+    padding:1px 6px;
+  }
+
+  /* ---------- Dropzone ---------- */
+  #dropzone{
+    border:2px dashed #B9C6C1;
+    border-radius:var(--radius);
+    background:var(--surface);
+    padding:34px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  #dropzone.dragover{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  #dropzone .dz-icon{
+    width:40px; height:40px; margin:0 auto 12px;
+    color:var(--accent);
+  }
+  #dropzone .dz-title{
+    font-weight:700;
+    font-size:16px;
+    margin:0 0 4px;
+  }
+  #dropzone .dz-sub{
+    font-size:13px;
+    color:var(--muted);
+    margin:0;
+  }
+  #fileInput{ display:none; }
+  #dzStatus{
+    margin-top:14px;
+    font-size:13px;
+    color:var(--accent-dark);
+    font-family:var(--font-data);
+    min-height:18px;
+  }
+  #dzStatus.error{ color:var(--warn); }
+
+  /* ---------- Review queue ---------- */
+  .review-card{
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px 20px;
+    margin-bottom:14px;
+    background:#FBFDFC;
+  }
+  .review-card.parse-failed{ border-color:var(--warn); background:var(--warn-soft); }
+  .review-warn{
+    font-size:12.5px;
+    color:var(--warn);
+    margin:-4px 0 12px;
+    font-weight:700;
+  }
+  .review-info{
+    font-size:12.5px;
+    color:var(--accent-dark);
+    background:var(--accent-soft);
+    border-radius:8px;
+    padding:8px 12px;
+    margin:-4px 0 12px;
+    font-weight:600;
+  }
+  .review-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(140px,1fr));
+    gap:10px 14px;
+    margin-bottom:14px;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:var(--muted);
+    margin-bottom:4px;
+    font-weight:700;
+  }
+  .field input{
+    width:100%;
+    padding:7px 9px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-family:var(--font-data);
+    font-size:13.5px;
+    background:#fff;
+  }
+  .cat-table{ width:100%; border-collapse:collapse; margin-bottom:14px; font-size:13px; }
+  .cat-table th{
+    text-align:left; font-size:11px; color:var(--muted); font-weight:700;
+    padding:4px 6px; border-bottom:1px solid var(--line);
+  }
+  .cat-table td{ padding:4px 6px; border-bottom:1px solid #EEF1F0; }
+  .cat-table input{
+    width:100%; border:1px solid var(--line); border-radius:6px; padding:4px 6px;
+    font-family:var(--font-data); font-size:12.5px;
+  }
+  .cat-table input.name-input{ font-family:var(--font-body); }
+
+  .review-actions{ display:flex; gap:10px; justify-content:flex-end; }
+
+  /* ---------- Buttons ---------- */
+  button{
+    font-family:var(--font-body);
+    cursor:pointer;
+    border:none;
+    border-radius:10px;
+    padding:9px 16px;
+    font-size:13.5px;
+    font-weight:700;
+  }
+  .btn-primary{ background:var(--accent); color:#fff; }
+  .btn-primary:hover{ background:var(--accent-dark); }
+  .btn-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--line); }
+  .btn-ghost:hover{ background:#F1F4F3; }
+  .btn-danger-ghost{ background:transparent; color:var(--warn); border:1px solid var(--warn); }
+  .btn-danger-ghost:hover{ background:var(--warn-soft); }
+  .btn-small{ padding:5px 10px; font-size:12px; }
+
+  /* ---------- Dashboard layout ---------- */
+  .dashboard{
+    display:grid;
+    grid-template-columns:1.15fr .85fr;
+    gap:22px;
+    align-items:start;
+  }
+  @media (max-width:820px){
+    .dashboard{ grid-template-columns:1fr; }
+  }
+  .trend-wrap{ position:relative; height:230px; margin-bottom:6px; }
+  .trend-caption{ font-size:12px; color:var(--muted); margin:0 0 16px; }
+
+  .exam-list{ display:flex; flex-direction:column; gap:8px; max-height:340px; overflow-y:auto; padding-right:4px; }
+  .exam-item{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    cursor:pointer;
+    background:#fff;
+    transition:border-color .12s ease, background .12s ease;
+  }
+  .exam-item:hover{ border-color:var(--accent); }
+  .exam-item.active{ border-color:var(--accent); background:var(--accent-soft); }
+  .exam-item .tag{
+    font-family:var(--font-data);
+    font-size:11px;
+    color:var(--accent-dark);
+    background:var(--accent-soft);
+    border-radius:6px;
+    padding:2px 7px;
+    flex:none;
+    cursor:pointer;
+  }
+  .exam-item .tag:hover{ outline:1px solid var(--accent); }
+  .round-edit-input{
+    width:52px; flex:none;
+    font-family:var(--font-data); font-size:11px;
+    border:1px solid var(--accent); border-radius:6px;
+    padding:2px 6px;
+  }
+  .exam-item .info{ flex:1; min-width:0; }
+  .exam-item .info .name{
+    font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .exam-item .info .date{ font-size:11.5px; color:var(--muted); font-family:var(--font-data); }
+  .exam-item .score{
+    font-family:var(--font-data); font-weight:700; font-size:15px; flex:none;
+  }
+  .exam-item button.del{
+    flex:none; background:none; border:none; color:var(--muted); font-size:14px; padding:2px 6px;
+  }
+  .exam-item button.del:hover{ color:var(--warn); }
+
+  .empty-state{
+    text-align:center; padding:30px 10px; color:var(--muted); font-size:13.5px;
+  }
+
+  /* ---------- Detail panel ---------- */
+  .stat-grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px;
+  }
+  .stat{
+    background:#F8FAF9; border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px;
+  }
+  .stat .k{ font-size:10.5px; color:var(--muted); font-weight:700; margin-bottom:3px; }
+  .stat .v{ font-family:var(--font-data); font-size:17px; font-weight:700; }
+  .hero-score{
+    display:flex; align-items:baseline; gap:6px; margin-bottom:4px;
+  }
+  .hero-score .big{
+    font-family:var(--font-display); font-weight:800; font-size:44px; color:var(--accent-dark);
+    line-height:1;
+  }
+  .hero-score .unit{ font-size:14px; color:var(--muted); }
+  .hero-sub{ font-size:12.5px; color:var(--muted); margin:0 0 18px; }
+
+  .cat-bar-wrap{ position:relative; }
+  .cat-legend{ display:flex; gap:14px; font-size:11.5px; color:var(--muted); margin-top:10px; }
+  .cat-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+  /* ---------- Footer data mgmt ---------- */
+  footer.data-mgmt{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+    border-top:1px solid var(--line); padding-top:20px; margin-top:10px;
+  }
+  footer.data-mgmt .left{ font-size:12px; color:var(--muted); }
+  footer.data-mgmt .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+
+  #toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px;
+    font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+    z-index:50;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+
+  /* ---------- Custom confirm modal (confirm()がiframe内で無効化される問題への対策) ---------- */
+  #confirmOverlay{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(22,35,61,.45);
+    align-items:center; justify-content:center;
+    z-index:100;
+    padding:20px;
+  }
+  #confirmOverlay.show{ display:flex; }
+  .confirm-box{
+    background:#fff;
+    border-radius:14px;
+    padding:24px 26px;
+    max-width:360px;
+    width:100%;
+    box-shadow:0 12px 32px rgba(22,35,61,.25);
+  }
+  .confirm-box p{
+    margin:0 0 18px;
+    font-size:14px;
+    color:var(--ink);
+    line-height:1.6;
+  }
+  .confirm-actions{ display:flex; justify-content:flex-end; gap:10px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Mock Exam Tracker</p>
+    <h1>模試成績ダッシュボード</h1>
+    <p>模試の結果PDFをこの画面にドラッグ&ドロップすると、点数・分野別の得点率を自動で読み取り、100点換算の成績推移として蓄積します。</p>
+    <div class="privacy-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/></svg>
+      データはこの端末・このブラウザの中だけに保存されます。サーバーには送信されません。
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <h2 class="section-title"><span class="num">01</span>模試の結果PDFを追加</h2>
+    <div id="dropzone">
+      <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/>
+      </svg>
+      <p class="dz-title">PDFをドラッグ&ドロップ、またはクリックして選択</p>
+      <p class="dz-sub">複数ファイルをまとめて追加できます</p>
+      <input type="file" id="fileInput" accept="application/pdf" multiple>
+      <p id="dzStatus"></p>
+    </div>
+  </section>
+
+  <section id="reviewSection" style="display:none;">
+    <h2 class="section-title"><span class="num">02</span>読み取り内容の確認</h2>
+    <div id="reviewQueue"></div>
+    <div class="review-actions" style="margin-top:6px;">
+      <button class="btn-ghost" id="cancelAllBtn">すべてキャンセル</button>
+      <button class="btn-primary" id="saveAllBtn">すべて保存</button>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title"><span class="num">03</span>成績の推移</h2>
+    <div class="dashboard">
+      <div class="card">
+        <div class="trend-wrap"><canvas id="trendCanvas"></canvas></div>
+        <p class="trend-caption">各回の得点率を100点換算で表示しています(得点 ÷ 満点 × 100)。回数の数字部分をクリックすると、第何回かを変更できます。</p>
+        <div id="examList" class="exam-list"></div>
+      </div>
+
+      <div class="card">
+        <div id="detailEmpty" class="empty-state">左のリストから模試を選択すると、分野別の詳細がここに表示されます。</div>
+        <div id="detailContent" style="display:none;">
+          <div class="hero-score"><span class="big" id="detailScoreRate">--</span><span class="unit">/ 100点換算</span></div>
+          <p class="hero-sub" id="detailExamName">-</p>
+          <div class="stat-grid">
+            <div class="stat"><div class="k">得点 / 満点</div><div class="v" id="statScore">-</div></div>
+            <div class="stat"><div class="k">平均点</div><div class="v" id="statAvg">-</div></div>
+            <div class="stat"><div class="k">偏差値</div><div class="v" id="statDev">-</div></div>
+            <div class="stat"><div class="k">順位</div><div class="v" id="statRank">-</div></div>
+            <div class="stat"><div class="k">最高点 / 最低点</div><div class="v" id="statMinMax">-</div></div>
+            <div class="stat"><div class="k">受験日</div><div class="v" id="statDate">-</div></div>
+          </div>
+          <h2 class="section-title" style="font-size:15px;">分野別の得点率(苦手分野)</h2>
+          <div class="cat-bar-wrap"><canvas id="detailCanvas"></canvas></div>
+          <div class="cat-legend">
+            <span><span class="dot" style="background:#3F8F6E"></span>80%以上</span>
+            <span><span class="dot" style="background:#C79A3C"></span>60〜79%</span>
+            <span><span class="dot" style="background:#B2472F"></span>60%未満(要復習)</span>
+          </div>
+          <div style="text-align:right; margin-top:14px;">
+            <button class="btn-danger-ghost btn-small" id="deleteDetailBtn">この回のデータを削除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="data-mgmt">
+    <div class="left" id="recordCountLabel">保存されている模試:0件</div>
+    <div class="actions">
+      <button class="btn-ghost btn-small" id="exportBtn">JSONで書き出す(バックアップ)</button>
+      <button class="btn-ghost btn-small" id="importBtnLabel">JSONを読み込む</button>
+      <input type="file" id="importInput" accept="application/json" style="display:none;">
+      <button class="btn-danger-ghost btn-small" id="resetBtn">全データを削除</button>
+    </div>
+  </footer>
+
+</div>
+
+<div id="toast"></div>
+
+<div id="confirmOverlay">
+  <div class="confirm-box">
+    <p id="confirmMessage"></p>
+    <div class="confirm-actions">
+      <button id="confirmCancelBtn" class="btn-ghost btn-small">キャンセル</button>
+      <button id="confirmOkBtn" class="btn-danger-ghost btn-small">削除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const STORAGE_KEY = 'mogiTrackerRecords_v1';
+let records = loadRecords();
+let pendingQueue = [];
+let selectedId = null;
+let trendChartInst = null;
+let detailChartInst = null;
+
+/* ============================================================
+   0. ユーティリティ
+   ============================================================ */
+function uid(){ return 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+/* confirm()はiframe(Moodle埋め込み表示など)ではブロックされ、
+   何も表示されずfalse扱いになることがあるため、独自の確認モーダルで代替する */
+let _confirmResolve = null;
+function askConfirm(message){
+  return new Promise(resolve=>{
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmOverlay').classList.add('show');
+    _confirmResolve = resolve;
+  });
+}
+document.getElementById('confirmCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('confirmOverlay').classList.remove('show');
+  if(_confirmResolve){ _confirmResolve(false); _confirmResolve = null; }
+});
+document.getElementById('confirmOkBtn').addEventListener('click', ()=>{
+  document.getElementById('confirmOverlay').classList.remove('show');
+  if(_confirmResolve){ _confirmResolve(true); _confirmResolve = null; }
+});
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=> t.classList.remove('show'), 2400);
+}
+
+/* ============================================================
+   1. ローカルストレージ
+   ============================================================ */
+function loadRecords(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const recs = raw ? JSON.parse(raw) : [];
+    // 旧データ互換:roundNumber(回数)が無い記録には、日付順で自動採番して補完する
+    let migrated = false;
+    const byDate = [...recs].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.addedAt||0) - (b.addedAt||0));
+    byDate.forEach((r,i)=>{
+      if(!r.roundNumber){ r.roundNumber = i+1; migrated = true; }
+    });
+    if(migrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(recs));
+    return recs;
+  }catch(e){
+    console.error('storage read error', e);
+    return [];
+  }
+}
+function persistRecords(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return true;
+  }catch(e){
+    console.error('storage write error', e);
+    showToast('保存に失敗しました。ブラウザのストレージ容量をご確認ください。');
+    return false;
+  }
+}
+
+/* ============================================================
+   2. PDFテキスト抽出(座標ベースで行を再構成)
+   ============================================================ */
+async function extractLinesFromPdf(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let allLines = [];
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    allLines = allLines.concat(linesFromTextContent(tc));
+  }
+  return allLines;
+}
+
+function linesFromTextContent(textContent){
+  const items = textContent.items
+    .filter(it => it.str && it.str.trim().length > 0)
+    .map(it => ({
+      x: it.transform[4],
+      y: it.transform[5],
+      str: it.str,
+      width: it.width || Math.abs(it.transform[0]) * it.str.length * 0.5
+    }));
+  items.sort((a,b)=> b.y - a.y || a.x - b.x);
+
+  const clusters = [];
+  let current = [];
+  let currentY = null;
+  const Y_TOL = 3;
+  items.forEach(it=>{
+    if(currentY === null || Math.abs(it.y - currentY) <= Y_TOL){
+      current.push(it);
+      if(currentY === null) currentY = it.y;
+    }else{
+      clusters.push(current);
+      current = [it];
+      currentY = it.y;
+    }
+  });
+  if(current.length) clusters.push(current);
+
+  return clusters.map(rowItems=>{
+    rowItems.sort((a,b)=> a.x - b.x);
+    let line = '';
+    let prevEnd = null;
+    rowItems.forEach(it=>{
+      if(prevEnd !== null && (it.x - prevEnd) > 1.2) line += ' ';
+      line += it.str;
+      prevEnd = it.x + it.width;
+    });
+    return line;
+  });
+}
+
+/* ============================================================
+   3. フィールド抽出ロジック(実PDFで検証済み)
+   ============================================================ */
+function parseStudentName(fullText){
+  const m = fullText.match(/氏名[:：]\s*([^\s0-9０-９]+(?:\s+[^\s0-9０-９]+)?)/);
+  return m ? m[1].trim() : '';
+}
+
+function parseFullExamName(lines){
+  const idx = lines.findIndex(l => l.includes('正誤表'));
+  if(idx === -1) return null;
+  for(let i = idx+1; i < lines.length; i++){
+    if(lines[i].trim()) return lines[i].trim();
+  }
+  return null;
+}
+
+function parseOverallScore(lines){
+  let headerIdx = -1;
+  for(let i=0;i<lines.length;i++){
+    if(lines[i].includes('テスト名') && lines[i].includes('満点') && lines[i].includes('得点')){
+      headerIdx = i; break;
+    }
+  }
+  if(headerIdx === -1) return null;
+  let dataLine = null;
+  for(let i = headerIdx+1; i < lines.length; i++){
+    if(lines[i].trim()){ dataLine = lines[i]; break; }
+  }
+  if(!dataLine) return null;
+  const tokens = dataLine.trim().split(/\s+/);
+  if(tokens.length < 10) return null;
+  const nums = tokens.slice(-9);
+  const testName = tokens.slice(0, tokens.length-9).join(' ');
+  const fields = ['maxScore','rawScore','average','scoreRate','deviation','rank','totalExaminees','classMax','classMin'];
+  const out = { testName };
+  fields.forEach((f,i)=> out[f] = parseFloat(nums[i]));
+  if(isNaN(out.maxScore) || isNaN(out.rawScore)) return null;
+  return out;
+}
+
+function parseCategories(fullText){
+  const idx = fullText.indexOf('分野別採点');
+  if(idx === -1) return null;
+  const sub = fullText.slice(idx);
+  const sublines = sub.split('\n').map(l=>l.trim()).filter(l=>l);
+  let catNames = null;
+  const rows = {};
+  sublines.forEach(l=>{
+    const toks = l.split(/\s+/);
+    const ci = toks.indexOf('分野名');
+    if(ci !== -1) catNames = toks.slice(ci+1);
+    ['配点','得点','平均点','得点率'].forEach(label=>{
+      const li = toks.indexOf(label);
+      if(li !== -1){
+        const vals = toks.slice(li+1).filter(v => /^-?\d+(\.\d+)?$/.test(v));
+        rows[label] = vals.map(Number);
+      }
+    });
+  });
+  if(!catNames || !rows['得点率']) return null;
+  return catNames.map((name,i)=>({
+    name,
+    allocation: rows['配点'] ? rows['配点'][i] : null,
+    score: rows['得点'] ? rows['得点'][i] : null,
+    average: rows['平均点'] ? rows['平均点'][i] : null,
+    rate: rows['得点率'] ? rows['得点率'][i] : null
+  }));
+}
+
+function nextSuggestedRound(){
+  const existing = records.map(r=>r.roundNumber || 0);
+  const pending = pendingQueue.map(r=>r.roundNumber || 0);
+  const all = existing.concat(pending);
+  return all.length ? Math.max(...all) + 1 : 1;
+}
+
+async function parsePdfToRecord(file){
+  let lines = [];
+  let parseOk = true;
+  try{
+    lines = await extractLinesFromPdf(file);
+  }catch(e){
+    console.error('pdf extract error', e);
+    parseOk = false;
+  }
+  const fullText = lines.join('\n');
+  const overall = parseOk ? parseOverallScore(lines) : null;
+  const categories = parseOk ? parseCategories(fullText) : null;
+  const fullName = parseOk ? parseFullExamName(lines) : null;
+  const studentName = parseOk ? parseStudentName(fullText) : '';
+
+  return {
+    id: uid(),
+    fileName: file.name,
+    date: todayISO(),
+    roundNumber: nextSuggestedRound(),
+    studentName: studentName,
+    examName: fullName || (overall ? overall.testName : file.name.replace(/\.pdf$/i,'')),
+    maxScore: overall ? overall.maxScore : null,
+    rawScore: overall ? overall.rawScore : null,
+    average: overall ? overall.average : null,
+    deviation: overall ? overall.deviation : null,
+    rank: overall ? overall.rank : null,
+    totalExaminees: overall ? overall.totalExaminees : null,
+    classMax: overall ? overall.classMax : null,
+    classMin: overall ? overall.classMin : null,
+    categories: categories || [],
+    parseFailed: !overall,
+    addedAt: Date.now()
+  };
+}
+
+/* ============================================================
+   4. ドロップゾーン / レビューキュー
+   ============================================================ */
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const dzStatus = document.getElementById('dzStatus');
+
+dz.addEventListener('click', ()=> fileInput.click());
+dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', ()=> dz.classList.remove('dragover'));
+dz.addEventListener('drop', e=>{
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e=> handleFiles(e.target.files));
+
+async function handleFiles(fileList){
+  const files = Array.from(fileList).filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  if(files.length === 0){
+    dzStatus.textContent = 'PDFファイルを選択してください。';
+    dzStatus.classList.add('error');
+    return;
+  }
+  dzStatus.classList.remove('error');
+  dzStatus.textContent = `${files.length}件のPDFを解析しています…`;
+  for(const file of files){
+    try{
+      const record = await parsePdfToRecord(file);
+      pendingQueue.push(record);
+    }catch(e){
+      console.error(e);
+    }
+  }
+  dzStatus.textContent = `${files.length}件を読み取りました。内容を確認してください。`;
+  fileInput.value = '';
+  renderReviewQueue();
+}
+
+function renderReviewQueue(){
+  const section = document.getElementById('reviewSection');
+  const box = document.getElementById('reviewQueue');
+  if(pendingQueue.length === 0){
+    section.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  section.style.display = 'block';
+  box.innerHTML = pendingQueue.map((rec, idx)=> reviewCardHtml(rec, idx)).join('');
+}
+
+function reviewCardHtml(rec, idx){
+  const catRows = (rec.categories.length ? rec.categories : [{name:'',allocation:'',score:'',average:'',rate:''}])
+    .map((c, ci)=> `
+      <tr>
+        <td><input class="name-input" data-idx="${idx}" data-cidx="${ci}" data-field="name" value="${escapeAttr(c.name||'')}"></td>
+        <td><input data-idx="${idx}" data-cidx="${ci}" data-field="allocation" value="${valOrEmpty(c.allocation)}"></td>
+        <td><input data-idx="${idx}" data-cidx="${ci}" data-field="score" value="${valOrEmpty(c.score)}"></td>
+        <td><input data-idx="${idx}" data-cidx="${ci}" data-field="average" value="${valOrEmpty(c.average)}"></td>
+        <td><input data-idx="${idx}" data-cidx="${ci}" data-field="rate" value="${valOrEmpty(c.rate)}"></td>
+      </tr>`).join('');
+
+  return `
+  <div class="review-card ${rec.parseFailed ? 'parse-failed' : ''}">
+    ${rec.parseFailed ? '<p class="review-warn">自動読み取りができませんでした。下の項目を手動で入力してください。</p>' : ''}
+    ${(!rec.parseFailed && rec.categories.length === 0) ? '<p class="review-info">この模試には分野別データが含まれていませんでした。らく点マーク君で出力する際に「分野別」の設定を有効にすると、苦手分野の分析が表示されるようになります。</p>' : ''}
+    <div class="review-grid">
+      <div class="field"><label>回数(第何回)</label><input type="number" min="1" data-idx="${idx}" data-field="roundNumber" value="${valOrEmpty(rec.roundNumber)}"></div>
+      <div class="field"><label>模試名</label><input data-idx="${idx}" data-field="examName" value="${escapeAttr(rec.examName||'')}"></div>
+      <div class="field"><label>受験日</label><input type="date" data-idx="${idx}" data-field="date" value="${rec.date}"></div>
+      <div class="field"><label>満点</label><input data-idx="${idx}" data-field="maxScore" value="${valOrEmpty(rec.maxScore)}"></div>
+      <div class="field"><label>得点</label><input data-idx="${idx}" data-field="rawScore" value="${valOrEmpty(rec.rawScore)}"></div>
+      <div class="field"><label>平均点</label><input data-idx="${idx}" data-field="average" value="${valOrEmpty(rec.average)}"></div>
+      <div class="field"><label>偏差値</label><input data-idx="${idx}" data-field="deviation" value="${valOrEmpty(rec.deviation)}"></div>
+      <div class="field"><label>順位</label><input data-idx="${idx}" data-field="rank" value="${valOrEmpty(rec.rank)}"></div>
+      <div class="field"><label>受験者数</label><input data-idx="${idx}" data-field="totalExaminees" value="${valOrEmpty(rec.totalExaminees)}"></div>
+      <div class="field"><label>最高点</label><input data-idx="${idx}" data-field="classMax" value="${valOrEmpty(rec.classMax)}"></div>
+      <div class="field"><label>最低点</label><input data-idx="${idx}" data-field="classMin" value="${valOrEmpty(rec.classMin)}"></div>
+    </div>
+    <table class="cat-table">
+      <thead><tr><th>分野名</th><th>配点</th><th>得点</th><th>平均点</th><th>得点率</th></tr></thead>
+      <tbody>${catRows}</tbody>
+    </table>
+    <div class="review-actions">
+      <button class="btn-ghost btn-small" onclick="removeFromQueue(${idx})">この件を削除</button>
+      <button class="btn-primary btn-small" onclick="saveOne(${idx})">この件だけ保存</button>
+    </div>
+  </div>`;
+}
+
+function valOrEmpty(v){ return (v === null || v === undefined || isNaN(v)) ? '' : v; }
+function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+document.getElementById('reviewQueue').addEventListener('input', e=>{
+  const t = e.target;
+  const idx = t.dataset.idx;
+  if(idx === undefined) return;
+  const rec = pendingQueue[idx];
+  if(!rec) return;
+  if(t.dataset.cidx !== undefined){
+    const ci = Number(t.dataset.cidx);
+    if(!rec.categories[ci]) rec.categories[ci] = {name:'',allocation:null,score:null,average:null,rate:null};
+    const field = t.dataset.field;
+    rec.categories[ci][field] = (field === 'name') ? t.value : (t.value === '' ? null : Number(t.value));
+  }else{
+    const field = t.dataset.field;
+    const numericFields = ['roundNumber','maxScore','rawScore','average','deviation','rank','totalExaminees','classMax','classMin'];
+    rec[field] = numericFields.includes(field) ? (t.value === '' ? null : Number(t.value)) : t.value;
+  }
+});
+
+function removeFromQueue(idx){
+  pendingQueue.splice(idx,1);
+  renderReviewQueue();
+}
+function saveOne(idx){
+  const rec = pendingQueue[idx];
+  commitRecord(rec);
+  pendingQueue.splice(idx,1);
+  renderReviewQueue();
+  showToast('保存しました');
+}
+document.getElementById('saveAllBtn').addEventListener('click', ()=>{
+  pendingQueue.forEach(commitRecord);
+  pendingQueue = [];
+  renderReviewQueue();
+  showToast('すべて保存しました');
+});
+document.getElementById('cancelAllBtn').addEventListener('click', ()=>{
+  pendingQueue = [];
+  renderReviewQueue();
+  dzStatus.textContent = '';
+});
+
+function commitRecord(rec){
+  rec.categories = rec.categories.filter(c => c.name && c.name.trim());
+  records.push(rec);
+  persistRecords();
+  renderAll();
+}
+
+/* ============================================================
+   5. ダッシュボード描画
+   ============================================================ */
+function sortedRecords(){
+  return [...records].sort((a,b)=> (a.roundNumber - b.roundNumber) || (a.date || '').localeCompare(b.date || '') || a.addedAt - b.addedAt);
+}
+function normScore(rec){
+  if(!rec.maxScore) return null;
+  return Math.round((rec.rawScore / rec.maxScore) * 1000) / 10;
+}
+
+function renderAll(){
+  renderTrendChart();
+  renderExamList();
+  renderRecordCount();
+  if(selectedId && !records.find(r=>r.id===selectedId)){
+    selectedId = null;
+  }
+  renderDetail();
+}
+
+function renderRecordCount(){
+  document.getElementById('recordCountLabel').textContent = `保存されている模試:${records.length}件`;
+}
+
+function renderTrendChart(){
+  const sorted = sortedRecords();
+  const labels = sorted.map(r => `第${r.roundNumber}回`);
+  const data = sorted.map(r => normScore(r));
+  const ctx = document.getElementById('trendCanvas').getContext('2d');
+  if(trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '得点率(100点換算)',
+        data,
+        borderColor: '#2F6F63',
+        backgroundColor: 'rgba(47,111,99,0.12)',
+        pointBackgroundColor: '#2F6F63',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.25,
+        fill: true,
+        spanGaps: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { min:0, max:100, ticks:{ stepSize:20, font:{family:"'JetBrains Mono', monospace", size:11} }, grid:{ color:'#E4E9E7' } },
+        x: { ticks:{ font:{family:"'JetBrains Mono', monospace", size:11} }, grid:{ display:false } }
+      },
+      plugins: {
+        legend:{ display:false },
+        tooltip:{
+          callbacks:{
+            afterLabel: (item)=>{
+              const r = sorted[item.dataIndex];
+              return r ? r.examName : '';
+            }
+          }
+        }
+      },
+      onClick: (evt, elements)=>{
+        if(elements.length){
+          const r = sorted[elements[0].index];
+          if(r){ selectedId = r.id; renderExamList(); renderDetail(); }
+        }
+      }
+    }
+  });
+}
+
+function renderExamList(){
+  const box = document.getElementById('examList');
+  const sorted = sortedRecords();
+  if(sorted.length === 0){
+    box.innerHTML = '<div class="empty-state">まだ模試の記録がありません。上部からPDFを追加してください。</div>';
+    return;
+  }
+  box.innerHTML = sorted.map((r,i)=>{
+    const score = normScore(r);
+    const active = r.id === selectedId ? 'active' : '';
+    return `
+    <div class="exam-item ${active}" onclick="selectRecord('${r.id}')">
+      <span class="tag" title="クリックして回数を編集" onclick="startEditRound(event, '${r.id}')">第${r.roundNumber}回</span>
+      <div class="info">
+        <div class="name">${escapeAttr(r.examName || '(名称未設定)')}</div>
+        <div class="date">${r.date || ''}</div>
+      </div>
+      <div class="score">${score !== null ? score.toFixed(1) : '--'}</div>
+      <button class="del" title="削除" onclick="event.stopPropagation(); deleteRecord('${r.id}')">×</button>
+    </div>`;
+  }).join('');
+}
+
+function selectRecord(id){
+  selectedId = id;
+  renderExamList();
+  renderDetail();
+}
+
+function startEditRound(e, id){
+  e.stopPropagation();
+  const rec = records.find(r => r.id === id);
+  if(!rec) return;
+  const span = e.currentTarget;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '1';
+  input.value = rec.roundNumber;
+  input.className = 'round-edit-input';
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  let committed = false;
+  const commit = ()=>{
+    if(committed) return;
+    committed = true;
+    const v = parseInt(input.value, 10);
+    if(!isNaN(v) && v > 0 && v !== rec.roundNumber){
+      rec.roundNumber = v;
+      persistRecords();
+      showToast(`第${v}回に変更しました`);
+    }
+    renderAll();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', ev=>{
+    if(ev.key === 'Enter') input.blur();
+    if(ev.key === 'Escape'){ committed = true; renderExamList(); }
+  });
+}
+
+async function deleteRecord(id){
+  const ok = await askConfirm('この回のデータを削除しますか?この操作は取り消せません。');
+  if(!ok) return;
+  records = records.filter(r => r.id !== id);
+  persistRecords();
+  if(selectedId === id) selectedId = null;
+  renderAll();
+  showToast('削除しました');
+}
+document.getElementById('deleteDetailBtn').addEventListener('click', ()=>{
+  if(selectedId) deleteRecord(selectedId);
+});
+
+function renderDetail(){
+  const empty = document.getElementById('detailEmpty');
+  const content = document.getElementById('detailContent');
+  const rec = records.find(r => r.id === selectedId);
+  if(!rec){
+    empty.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  content.style.display = 'block';
+
+  const score = normScore(rec);
+  document.getElementById('detailScoreRate').textContent = score !== null ? score.toFixed(1) : '--';
+  document.getElementById('detailExamName').textContent = rec.examName || '';
+  document.getElementById('statScore').textContent = (rec.rawScore ?? '-') + ' / ' + (rec.maxScore ?? '-');
+  document.getElementById('statAvg').textContent = rec.average ?? '-';
+  document.getElementById('statDev').textContent = rec.deviation ?? '-';
+  document.getElementById('statRank').textContent = (rec.rank ?? '-') + ' / ' + (rec.totalExaminees ?? '-');
+  document.getElementById('statMinMax').textContent = (rec.classMax ?? '-') + ' / ' + (rec.classMin ?? '-');
+  document.getElementById('statDate').textContent = rec.date || '-';
+
+  renderDetailChart(rec);
+}
+
+function colorForRate(rate){
+  if(rate >= 80) return '#3F8F6E';
+  if(rate >= 60) return '#C79A3C';
+  return '#B2472F';
+}
+
+function renderDetailChart(rec){
+  const cats = [...rec.categories].filter(c=> c.rate !== null && c.rate !== undefined).sort((a,b)=> a.rate - b.rate);
+  const ctx = document.getElementById('detailCanvas').getContext('2d');
+  const wrap = document.getElementById('detailCanvas').parentElement;
+  let noticeEl = document.getElementById('catNoDataNotice');
+  if(detailChartInst) detailChartInst.destroy();
+  if(cats.length === 0){
+    document.getElementById('detailCanvas').style.display = 'none';
+    if(!noticeEl){
+      noticeEl = document.createElement('p');
+      noticeEl.id = 'catNoDataNotice';
+      noticeEl.className = 'review-info';
+      noticeEl.style.margin = '0';
+      wrap.appendChild(noticeEl);
+    }
+    noticeEl.textContent = 'この模試には分野別データがありません。らく点マーク君で出力する際に「分野別」の設定を有効にすると、この回でも苦手分野の分析が表示されるようになります。';
+    noticeEl.style.display = 'block';
+    wrap.style.height = 'auto';
+    return;
+  }
+  document.getElementById('detailCanvas').style.display = 'block';
+  if(noticeEl) noticeEl.style.display = 'none';
+  detailChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: cats.map(c=>c.name),
+      datasets: [{
+        data: cats.map(c=>c.rate),
+        backgroundColor: cats.map(c=>colorForRate(c.rate)),
+        borderRadius: 6,
+        barThickness: 18
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { min:0, max:100, ticks:{ font:{family:"'JetBrains Mono', monospace", size:11} }, grid:{ color:'#E4E9E7' } },
+        y: { ticks:{ font:{size:12} }, grid:{ display:false } }
+      },
+      plugins: { legend:{ display:false } }
+    }
+  });
+  const h = Math.max(160, cats.length * 34);
+  document.getElementById('detailCanvas').parentElement.style.height = h + 'px';
+}
+
+/* ============================================================
+   6. データ管理(書き出し / 読み込み / 削除)
+   ============================================================ */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(records, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const label = records[0] && records[0].studentName ? records[0].studentName : '模試成績';
+  a.href = url;
+  a.download = `${label}_${todayISO()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('書き出しました');
+});
+
+document.getElementById('importBtnLabel').addEventListener('click', ()=>{
+  document.getElementById('importInput').click();
+});
+document.getElementById('importInput').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const imported = JSON.parse(text);
+    if(!Array.isArray(imported)) throw new Error('形式が不正です');
+    let added = 0;
+    imported.forEach(rec=>{
+      const dup = records.some(r => r.examName === rec.examName && r.date === rec.date && r.rawScore === rec.rawScore);
+      if(!dup){
+        rec.id = rec.id || uid();
+        records.push(rec);
+        added++;
+      }
+    });
+    persistRecords();
+    renderAll();
+    showToast(`${added}件のデータを読み込みました`);
+  }catch(err){
+    console.error(err);
+    showToast('読み込みに失敗しました。ファイル形式をご確認ください。');
+  }
+  e.target.value = '';
+});
+
+document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  const ok = await askConfirm('保存されているすべての模試データを削除します。この操作は取り消せません。よろしいですか?');
+  if(!ok) return;
+  records = [];
+  selectedId = null;
+  persistRecords();
+  renderAll();
+  showToast('すべてのデータを削除しました');
+});
+
+/* ============================================================
+   7. 初期描画
+   ============================================================ */
+renderAll();
+</script>
+</body>
+</html>
